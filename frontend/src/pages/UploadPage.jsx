@@ -4,6 +4,7 @@ import UploadProgress from '../components/upload/UploadProgress'
 import FormatOverride from '../components/parser/FormatOverride'
 import ErrorTable from '../components/errors/ErrorTable'
 import useSessionStore from '../store/useSessionStore'
+import CodebaseConnector from '../components/codebase/CodebaseConnector'
 
 export default function UploadPage() {
   const { uploadedFiles, uploadStatus, uploadProgress, parsedResults, error, clearSession } =
@@ -21,6 +22,9 @@ export default function UploadPage() {
           Drag-and-drop PHP, Node.js, or Python log files — results appear instantly.
         </p>
       </div>
+
+      {/* Codebase Connection */}
+      <CodebaseConnector />
 
       {/* Upload panel */}
       {!isDone && (

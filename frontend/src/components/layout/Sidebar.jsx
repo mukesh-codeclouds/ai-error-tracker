@@ -11,6 +11,16 @@ const navItems = [
       </svg>
     ),
   },
+  {
+    to: '/settings',
+    label: 'AI Settings',
+    id: 'sidebar-settings',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M12.9 3.1l-1.4 1.4M4.5 11.5l-1.4 1.4"/>
+      </svg>
+    ),
+  },
 ]
 
 export default function Sidebar() {
@@ -26,7 +36,7 @@ export default function Sidebar() {
         </div>
         <div>
           <p className="font-bold text-sm text-white leading-none">TrackError</p>
-          <p className="text-[10px] text-slate-500 leading-none mt-0.5">Phase 1</p>
+          <p className="text-[10px] text-slate-500 leading-none mt-0.5">Phase 3</p>
         </div>
       </div>
 
@@ -50,9 +60,9 @@ export default function Sidebar() {
       {/* Footer */}
       <div className="mt-auto px-3">
         <div className="rounded-xl bg-brand-600/10 border border-brand-500/20 p-3">
-          <p className="text-xs font-semibold text-brand-300 mb-0.5">Phase 1</p>
+          <p className="text-xs font-semibold text-brand-300 mb-0.5">Phase 3</p>
           <p className="text-[11px] text-slate-500 leading-snug">
-            Regex-based parsing — PHP · Node.js · Python
+            AI-Powered Fixes & Mapping — Local Codebase Connected
           </p>
         </div>
       </div>

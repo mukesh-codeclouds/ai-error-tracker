@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import FormatBadge from '../parser/FormatBadge'
+import useCodebaseStore from '../../store/useCodebaseStore'
+import { matchLogPathToLocal } from '../../utils/pathMatcher'
+import CodeViewerModal from '../viewer/CodeViewerModal'
 
 const SEVERITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3 }
 
@@ -17,9 +20,12 @@ const SEVERITY_DOT = {
   low:      'bg-green-500',
 }
 
-function ErrorRow({ error, index }) {
+function ErrorRow({ error, index, onViewCode }) {
   const [expanded, setExpanded] = useState(false)
   const sc = SEVERITY_CLASSES[error.severity] || 'severity-low'
+
+  const { fileIndex, status: codebaseStatus } = useCodebaseStore()
+  const localPath = codebaseStatus === 'connected' ? matchLogPathToLocal(error.file, fileIndex) : null
 
   return (
     <>
@@ -71,6 +77,23 @@ function ErrorRow({ error, index }) {
             : '—'}
         </td>
 
+        {/* View Code Action */}
+        <td className="px-4 py-3 text-right">
+          {localPath ? (
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewCode(localPath, error.line, error.language);
+              }}
+              className="text-[10px] font-bold text-blue-400 hover:text-blue-300 uppercase tracking-wider transition-colors"
+            >
+              View Code
+            </button>
+          ) : (
+            <span className="text-[10px] text-slate-700 uppercase tracking-wider">No Match</span>
+          )}
+        </td>
+
         {/* Expand toggle */}
         <td className="px-4 py-3 text-slate-600">
           <svg
@@ -112,6 +135,7 @@ function ErrorRow({ error, index }) {
 export default function ErrorTable({ fileResult }) {
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [viewer, setViewer] = useState({ isOpen: false, filePath: '', line: null, lang: '' })
 
   const { errors = [], summary = {}, fileName, detectedFormat, overrideApplied, parseTimeMs } = fileResult
 
@@ -209,12 +233,26 @@ export default function ErrorTable({ fileResult }) {
             </thead>
             <tbody>
               {filtered.map((error, i) => (
-                <ErrorRow key={error.id} error={error} index={i} />
+                <ErrorRow 
+                  key={error.id} 
+                  error={error} 
+                  index={i} 
+                  onViewCode={(path, line, lang) => setViewer({ isOpen: true, filePath: path, line, lang })}
+                />
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      {/* Code Viewer Modal */}
+      <CodeViewerModal 
+        isOpen={viewer.isOpen}
+        onClose={() => setViewer({ ...viewer, isOpen: false })}
+        filePath={viewer.filePath}
+        highlightLine={viewer.line}
+        language={viewer.lang}
+      />
     </div>
   )
 }

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import FormatBadge from '../parser/FormatBadge'
 import useCodebaseStore from '../../store/useCodebaseStore'
 import { matchLogPathToLocal } from '../../utils/pathMatcher'
@@ -24,7 +25,7 @@ const SEVERITY_DOT = {
   low:      'bg-green-500',
 }
 
-function ErrorRow({ error, index, onViewCode }) {
+function ErrorRow({ error, index, onViewCode, virtualRow }) {
   const [expanded, setExpanded] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiSuggestion, setAiSuggestion] = useState(null)
@@ -74,6 +75,14 @@ function ErrorRow({ error, index, onViewCode }) {
     <>
       <tr
         id={`error-row-${error.id}`}
+        ref={virtualRow.measureElement}
+        style={{
+          transform: `translateY(${virtualRow.start}px)`,
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+        }}
         className="border-b border-white/5 hover:bg-white/[0.02] cursor-pointer transition-colors duration-100"
         onClick={() => setExpanded((v) => !v)}
       >
@@ -235,6 +244,18 @@ export default function ErrorTable({ fileResult }) {
     )
     .sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 4) - (SEVERITY_ORDER[b.severity] ?? 4))
 
+  const parentRef = useRef();
+
+  const rowVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 50, // Height of a collapsed row
+    overscan: 10,
+  });
+
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const totalSize = rowVirtualizer.getTotalSize();
+
   const FILTERS = ['all', 'critical', 'high', 'medium', 'low']
 
   return (
@@ -308,9 +329,12 @@ export default function ErrorTable({ fileResult }) {
           No errors match your filters.
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
+        <div 
+          ref={parentRef} 
+          className="overflow-auto max-h-[600px] relative scrollbar-thin scrollbar-thumb-white/10"
+        >
+          <table className="w-full text-left" style={{ height: `${totalSize}px`, position: 'relative' }}>
+            <thead className="sticky top-0 bg-surface-800 z-10">
               <tr className="text-[11px] text-slate-600 uppercase tracking-widest border-b border-white/5">
                 {['#', 'Severity', 'Type', 'Format', 'Message', 'File:Line', 'Time', ''].map((h, i) => (
                   <th key={i} className="px-4 py-2.5 font-semibold whitespace-nowrap">{h}</th>
@@ -318,14 +342,18 @@ export default function ErrorTable({ fileResult }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((error, i) => (
-                <ErrorRow 
-                  key={error.id} 
-                  error={error} 
-                  index={i} 
-                  onViewCode={(path, line, lang) => setViewer({ isOpen: true, filePath: path, line, lang })}
-                />
-              ))}
+              {virtualRows.map((virtualRow) => {
+                const error = filtered[virtualRow.index];
+                return (
+                  <ErrorRow 
+                    key={error.id} 
+                    error={error} 
+                    index={virtualRow.index} 
+                    virtualRow={virtualRow}
+                    onViewCode={(path, line, lang) => setViewer({ isOpen: true, filePath: path, line, lang })}
+                  />
+                );
+              })}
             </tbody>
           </table>
         </div>

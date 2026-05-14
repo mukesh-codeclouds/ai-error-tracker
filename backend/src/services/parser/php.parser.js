@@ -75,69 +75,76 @@ const STACK_FRAME_RE = /^(?:#\d+|\[stacktrace\]|\s+at\s+.+|\s+"?#\d+)/
 const FILE_LINE_RE = /at\s+(.+?):(\d+)/
 
 /**
- * Parse a PHP log file content into structured error objects.
- * @param {string} content
- * @returns {Array}
+ * Returns a stateful line processor for PHP logs.
  */
-export function parsePhp(content) {
-  const lines = content.split('\n')
+export function createPhpParser() {
   const errors = []
   let currentError = null
 
-  for (const rawLine of lines) {
-    const line = rawLine.trim()
-    if (!line) continue
+  return {
+    processLine: (rawLine) => {
+      const line = rawLine.trim()
+      if (!line) return
 
-    // Stack trace line — attach to current error
-    if (STACK_FRAME_RE.test(line) && currentError) {
-      currentError.stackFrames = currentError.stackFrames || []
-      currentError.stackFrames.push(line)
-      continue
-    }
+      // Stack trace line — attach to current error
+      if (STACK_FRAME_RE.test(line) && currentError) {
+        currentError.stackFrames = currentError.stackFrames || []
+        currentError.stackFrames.push(line)
+        return
+      }
 
-    // Try each pattern
-    let matched = false
-    for (const { re, errorType, severity, map } of PATTERNS) {
-      const m = re.exec(line)
-      if (m) {
-        const data = map(m)
-        let file = data.file?.trim() ?? null
-        let lineNum = data.line ? parseInt(data.line, 10) : null
+      // Try each pattern
+      let matched = false
+      for (const { re, errorType, severity, map } of PATTERNS) {
+        const m = re.exec(line)
+        if (m) {
+          const data = map(m)
+          let file = data.file?.trim() ?? null
+          let lineNum = data.line ? parseInt(data.line, 10) : null
 
-        // Try extracting from message if null (common in Laravel FatalErrors)
-        if (!file && data.message) {
-          const flm = FILE_LINE_RE.exec(data.message)
-          if (flm) {
-            file = flm[1]
-            lineNum = parseInt(flm[2], 10)
+          // Try extracting from message if null (common in Laravel FatalErrors)
+          if (!file && data.message) {
+            const flm = FILE_LINE_RE.exec(data.message)
+            if (flm) {
+              file = flm[1]
+              lineNum = parseInt(flm[2], 10)
+            }
           }
-        }
 
-        currentError = {
-          id:          `err_${uuidv4().slice(0, 8)}`,
-          timestamp:   data.timestamp ? parseTimestamp(data.timestamp) : extractTimestamp(line),
-          language:    'php',
-          errorType,
-          severity,
-          message:     data.message.trim(),
-          file,
-          line:        lineNum,
-          rawLine:     rawLine,
-          stackFrames: [],
+          currentError = {
+            id:          `err_${uuidv4().slice(0, 8)}`,
+            timestamp:   data.timestamp ? parseTimestamp(data.timestamp) : extractTimestamp(line),
+            language:    'php',
+            errorType,
+            severity,
+            message:     data.message.trim(),
+            file,
+            line:        lineNum,
+            rawLine:     rawLine,
+            stackFrames: [],
+          }
+          errors.push(currentError)
+          matched = true
+          break
         }
-        errors.push(currentError)
-        matched = true
-        break
       }
-    }
 
-    if (!matched) {
-      // Reset stack trace grouping if a non-matching, non-stack line appears
-      if (!STACK_FRAME_RE.test(line)) {
-        currentError = null
+      if (!matched) {
+        // Reset stack trace grouping if a non-matching, non-stack line appears
+        if (!STACK_FRAME_RE.test(line)) {
+          currentError = null
+        }
       }
-    }
+    },
+    getResults: () => errors
   }
+}
 
-  return errors
+/**
+ * Legacy support for whole-content parsing
+ */
+export function parsePhp(content) {
+  const parser = createPhpParser()
+  content.split('\n').forEach(parser.processLine)
+  return parser.getResults()
 }

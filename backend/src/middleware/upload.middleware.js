@@ -1,10 +1,24 @@
 import multer from 'multer'
+import fs from 'fs'
 import path from 'path'
 import { config } from '../config/index.js'
 
 const MAX_SIZE = config.maxFileSizeMB * 1024 * 1024
+const UPLOAD_DIR = 'uploads/'
 
-const storage = multer.memoryStorage()
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR)
+}
+
+const storage = multer.diskStorage({
+  destination: function (_req, _file, cb) {
+    cb(null, UPLOAD_DIR)
+  },
+  filename: function (_req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9)
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname))
+  }
+})
 
 function fileFilter(_req, file, cb) {
   const ext = path.extname(file.originalname).toLowerCase()

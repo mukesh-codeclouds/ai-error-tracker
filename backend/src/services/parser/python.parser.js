@@ -34,97 +34,99 @@ const ERROR_PATTERNS = [
 const STANDALONE_PATTERNS = ERROR_PATTERNS
 
 /**
- * Parse Python log content using a state machine.
- * Handles multi-line Traceback blocks and standalone errors.
- * @param {string} content
- * @returns {Array}
+ * Returns a stateful line processor for Python logs.
  */
-export function parsePython(content) {
-  const lines = content.split('\n')
+export function createPythonParser() {
   const errors = []
-
   let state = IDLE
   let frames = []
-  let tracebackStartLine = null
 
-  for (let i = 0; i < lines.length; i++) {
-    const rawLine = lines[i]
-    const line = rawLine.trim()
+  return {
+    processLine: (rawLine) => {
+      const line = rawLine.trim()
+      if (!line) return
 
-    if (state === IDLE) {
-      if (TRACEBACK_START_RE.test(line)) {
-        state = IN_TRACEBACK
-        frames = []
-        tracebackStartLine = rawLine
-        continue
-      }
-
-      // Standalone error line (no traceback)
-      for (const { re, errorType, severity } of STANDALONE_PATTERNS) {
-        const m = re.exec(line)
-        if (m) {
-          errors.push({
-            id:          `err_${uuidv4().slice(0, 8)}`,
-            timestamp:   null,
-            language:    'python',
-            errorType,
-            severity,
-            message:     (m[2] ?? m[1]).trim(),
-            file:        null,
-            line:        null,
-            rawLine:     rawLine,
-            stackFrames: [],
-          })
-          break
-        }
-      }
-    } else if (state === IN_TRACEBACK) {
-      const frameMatch = FRAME_RE.exec(rawLine.trimEnd())
-      if (frameMatch) {
-        frames.push({
-          file: frameMatch[1],
-          line: parseInt(frameMatch[2], 10),
-          fn:   frameMatch[3],
-          raw:  rawLine,
-        })
-        continue
-      }
-
-      // Try to match as error conclusion
-      let matched = false
-      for (const { re, errorType, severity } of ERROR_PATTERNS) {
-        const m = re.exec(line)
-        if (m) {
-          const lastFrame = frames[frames.length - 1]
-          errors.push({
-            id:          `err_${uuidv4().slice(0, 8)}`,
-            timestamp:   null,
-            language:    'python',
-            errorType,
-            severity,
-            message:     (m[2] ?? m[1]).trim(),
-            file:        lastFrame?.file ?? null,
-            line:        lastFrame?.line ?? null,
-            rawLine:     rawLine,
-            stackFrames: frames.map((f) => `File "${f.file}", line ${f.line}, in ${f.fn}`),
-          })
-          matched = true
-          state = IDLE
+      if (state === IDLE) {
+        if (TRACEBACK_START_RE.test(line)) {
+          state = IN_TRACEBACK
           frames = []
-          break
+          return
         }
-      }
 
-      if (!matched && !frameMatch) {
-        // If the line is indented, it might be a code line within the traceback (keep going)
-        // If it's NOT indented and doesn't match an error, then we abandon.
-        if (!rawLine.startsWith(' ') && !rawLine.startsWith('\t')) {
-          state = IDLE
-          frames = []
+        // Standalone error line (no traceback)
+        for (const { re, errorType, severity } of STANDALONE_PATTERNS) {
+          const m = re.exec(line)
+          if (m) {
+            errors.push({
+              id:          `err_${uuidv4().slice(0, 8)}`,
+              timestamp:   null,
+              language:    'python',
+              errorType,
+              severity,
+              message:     (m[2] ?? m[1]).trim(),
+              file:        null,
+              line:        null,
+              rawLine:     rawLine,
+              stackFrames: [],
+            })
+            break
+          }
+        }
+      } else if (state === IN_TRACEBACK) {
+        const frameMatch = FRAME_RE.exec(rawLine.trimEnd())
+        if (frameMatch) {
+          frames.push({
+            file: frameMatch[1],
+            line: parseInt(frameMatch[2], 10),
+            fn:   frameMatch[3],
+            raw:  rawLine,
+          })
+          return
+        }
+
+        // Try to match as error conclusion
+        let matched = false
+        for (const { re, errorType, severity } of ERROR_PATTERNS) {
+          const m = re.exec(line)
+          if (m) {
+            const lastFrame = frames[frames.length - 1]
+            errors.push({
+              id:          `err_${uuidv4().slice(0, 8)}`,
+              timestamp:   null,
+              language:    'python',
+              errorType,
+              severity,
+              message:     (m[2] ?? m[1]).trim(),
+              file:        lastFrame?.file ?? null,
+              line:        lastFrame?.line ?? null,
+              rawLine:     rawLine,
+              stackFrames: frames.map((f) => `File "${f.file}", line ${f.line}, in ${f.fn}`),
+            })
+            matched = true
+            state = IDLE
+            frames = []
+            break
+          }
+        }
+
+        if (!matched && !frameMatch) {
+          // If the line is NOT indented and doesn't match an error, then we abandon.
+          if (!rawLine.startsWith(' ') && !rawLine.startsWith('\t')) {
+            state = IDLE
+            frames = []
+          }
         }
       }
-    }
+    },
+    getResults: () => errors
   }
+}
 
-  return errors
+/**
+ * Legacy support for whole-content parsing
+ */
+export function parsePython(content) {
+  const parser = createPythonParser()
+  content.split('\n').forEach(parser.processLine)
+  return parser.getResults()
 }

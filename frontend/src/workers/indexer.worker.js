@@ -13,6 +13,7 @@ self.onmessage = async (e) => {
   
   const fileIndex = {}; // filename -> array of relative paths
   let totalFiles = 0;
+  let lastProgressUpdate = Date.now();
 
   try {
     async function crawl(handle, relativePath = '') {
@@ -22,8 +23,8 @@ self.onmessage = async (e) => {
         const path = relativePath ? `${relativePath}/${entry.name}` : entry.name;
 
         if (entry.kind === 'directory') {
-          // Check depth
-          if (path.split('/').length > 10) continue;
+          // Check depth (prevent infinite recursion/too deep)
+          if (path.split('/').length > 15) continue;
           await crawl(entry, path);
         } else {
           const fileName = entry.name;
@@ -33,9 +34,11 @@ self.onmessage = async (e) => {
           fileIndex[fileName].push(path);
           totalFiles++;
 
-          // Send progress every 100 files
-          if (totalFiles % 100 === 0) {
+          // Throttled progress updates (every 100ms or 1000 files)
+          const now = Date.now();
+          if (now - lastProgressUpdate > 100 || totalFiles % 1000 === 0) {
             self.postMessage({ type: 'progress', totalFiles, currentPath: path });
+            lastProgressUpdate = now;
           }
         }
       }

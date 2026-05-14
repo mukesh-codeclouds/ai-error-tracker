@@ -1,12 +1,12 @@
 import { v4 as uuidv4 } from 'uuid'
 import { handleUpload } from '../middleware/upload.middleware.js'
-import { decompress } from '../services/decompressor.service.js'
+import { getChunk, getStream } from '../services/decompressor.service.js'
 import { detectFormat } from '../services/formatDetector.service.js'
-import { dispatch } from '../services/parser/index.js'
+import { parseStream } from '../services/parser/index.js'
 
 export async function uploadLogs(req, res, next) {
   try {
-    // 1. Handle multipart upload
+    // 1. Handle multipart upload (files saved to disk by multer)
     await handleUpload(req, res)
 
     if (!req.files?.length) {
@@ -20,21 +20,21 @@ export async function uploadLogs(req, res, next) {
     for (const file of req.files) {
       const startTime = Date.now()
 
-      // 2. Decompress if .gz
-      let content
-      try {
-        content = await decompress(file)
-      } catch {
-        return res.status(422).json({
-          error: `File "${file.originalname}" could not be decompressed or read as text.`,
-        })
+      // 2. Detect format using a small chunk (efficient for large files)
+      let detectedFormat = formatOverride
+      if (!detectedFormat) {
+        try {
+          const chunk = await getChunk(file.path)
+          detectedFormat = detectFormat(chunk)
+        } catch (err) {
+          console.error(`Detection error for ${file.originalname}:`, err)
+          detectedFormat = 'unknown'
+        }
       }
 
-      // 3. Detect format
-      const detectedFormat = formatOverride ?? detectFormat(content)
       const overrideApplied = !!formatOverride
 
-      if (detectedFormat === 'unknown' && !formatOverride) {
+      if (detectedFormat === 'unknown') {
         results.push({
           fileName: file.originalname,
           originalSize: file.size,
@@ -48,10 +48,17 @@ export async function uploadLogs(req, res, next) {
         continue
       }
 
-      // 4. Parse
-      const errors = dispatch(content, detectedFormat)
+      // 3. Parse stream (line-by-line)
+      let errors = []
+      try {
+        const stream = getStream(file.path)
+        errors = await parseStream(stream, detectedFormat)
+      } catch (err) {
+        console.error(`Parsing error for ${file.originalname}:`, err)
+        // We could return a partial result or an error for this specific file
+      }
 
-      // 5. Summary counts
+      // 4. Summary counts
       const summary = { total: errors.length, critical: 0, high: 0, medium: 0, low: 0 }
       for (const e of errors) {
         if (summary[e.severity] !== undefined) summary[e.severity]++

@@ -130,6 +130,7 @@ function ErrorDetailModal({ error, onClose, onViewCode }) {
       setAiSuggestion(result)
     } catch (err) {
       console.error('AI Fix Error:', err)
+      setAiSuggestion({ isError: true, message: err.message || 'Failed to fetch AI suggestion' })
     } finally {
       setAiLoading(false)
     }
@@ -218,6 +219,12 @@ function ErrorDetailModal({ error, onClose, onViewCode }) {
                   <Loader2 size={28} className="text-blue-500 animate-spin" />
                   <p className="text-sm font-bold text-white">AI is analyzing the error...</p>
                   <p className="text-xs text-slate-500">Comparing log context with your local codebase.</p>
+                </div>
+              ) : aiSuggestion.isError ? (
+                <div className="rounded-xl border border-dashed border-red-500/20 p-8 flex flex-col items-center justify-center gap-3">
+                  <AlertCircle size={28} className="text-red-500" />
+                  <p className="text-sm font-bold text-red-400">AI Analysis Failed</p>
+                  <p className="text-xs text-slate-500">{aiSuggestion.message}</p>
                 </div>
               ) : (
                 <FixSuggestion suggestion={aiSuggestion} />

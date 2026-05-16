@@ -1,5 +1,4 @@
 import React from 'react';
-import ReactDiffViewer from 'react-diff-viewer-next';
 import { Copy, Check, ExternalLink, Sparkles } from 'lucide-react';
 import MappingBadge from './MappingBadge';
 
@@ -35,15 +34,25 @@ const FixSuggestion = ({ suggestion, onApply }) => {
 
         {/* Diff View */}
         {diff && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-tight">Proposed Changes</h4>
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
-              <ReactDiffViewer
-                oldValue={diff.oldValue || ''}
-                newValue={diff.newValue || ''}
-                splitView={false}
-                useDarkTheme={document.documentElement.classList.contains('dark')}
-              />
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <div className="rounded-lg border border-red-500/20 bg-red-50 dark:bg-red-900/10 overflow-hidden flex flex-col">
+                <div className="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-[11px] font-bold uppercase tracking-wider border-b border-red-200 dark:border-red-900/30">
+                  Original Code
+                </div>
+                <pre className="p-4 text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-300 flex-1 whitespace-pre-wrap">
+                  {diff.oldValue || '—'}
+                </pre>
+              </div>
+              <div className="rounded-lg border border-green-500/20 bg-green-50 dark:bg-green-900/10 overflow-hidden flex flex-col">
+                <div className="px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[11px] font-bold uppercase tracking-wider border-b border-green-200 dark:border-green-900/30">
+                  Updated Code
+                </div>
+                <pre className="p-4 text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-300 flex-1 whitespace-pre-wrap">
+                  {diff.newValue || '—'}
+                </pre>
+              </div>
             </div>
           </div>
         )}

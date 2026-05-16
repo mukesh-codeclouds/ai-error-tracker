@@ -4,7 +4,16 @@ export const ollamaService = {
   generateFix: async ({ model, endpoint, context }) => {
     const prompt = `
       You are an expert software debugger. Analyze the following error and provide a fix.
-      Return your response in structured JSON format with keys: explanation, fixSuggestion, diff, confidence.
+      Return your response in structured JSON format. It must include the following keys:
+      {
+        "explanation": "Brief root cause analysis",
+        "fixSuggestion": "The corrected code or logical fix",
+        "diff": {
+          "oldValue": "The exact original code snippet that needs replacing",
+          "newValue": "The new code snippet to replace the old one"
+        },
+        "confidence": 0.95
+      }
       
       Error Context:
       - Message: ${context.message}
@@ -12,9 +21,9 @@ export const ollamaService = {
       - Line: ${context.line}
       - Stack Trace: ${context.stackTrace || 'N/A'}
       
-      Code Snippet around error:
+      Code Context around error:
       \`\`\`
-      ${context.codeSnippet || 'N/A'}
+      ${context.codeContext || 'N/A'}
       \`\`\`
     `;
 

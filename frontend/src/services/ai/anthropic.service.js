@@ -12,7 +12,10 @@ export const anthropicService = {
       {
         "explanation": "Brief root cause analysis",
         "fixSuggestion": "The corrected code or logical fix",
-        "diff": "Unified diff format if applicable",
+        "diff": {
+          "oldValue": "The exact original code snippet that needs replacing",
+          "newValue": "The new code snippet to replace the old one"
+        },
         "confidence": 0.95
       }
 
@@ -22,9 +25,9 @@ export const anthropicService = {
       - Line: ${context.line}
       - Stack Trace: ${context.stackTrace || 'N/A'}
       
-      Code Snippet around error:
+      Code Context around error:
       \`\`\`
-      ${context.codeSnippet || 'N/A'}
+      ${context.codeContext || 'N/A'}
       \`\`\`
     `;
 

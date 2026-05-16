@@ -8,7 +8,7 @@ const useAIStore = create(
       models: {
         openai: 'gpt-4o',
         anthropic: 'claude-3-5-sonnet-20240620',
-        google: 'gemini-1.5-pro',
+        google: 'gemini-2.5-flash',
         ollama: 'llama3',
       },
       apiKeys: {

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import React from 'react'
 import DropZone from '../components/upload/DropZone'
 import FileList from '../components/upload/FileList'
 import UploadProgress from '../components/upload/UploadProgress'
@@ -7,47 +7,16 @@ import ErrorTable from '../components/errors/ErrorTable'
 import useSessionStore from '../store/useSessionStore'
 import CodebaseConnector from '../components/codebase/CodebaseConnector'
 import StatsCards from '../components/dashboard/StatsCards'
-import ErrorTrendChart from '../components/dashboard/ErrorTrendChart'
 import ExportActions from '../components/export/ExportActions'
-import FilterSidebar from '../components/dashboard/FilterSidebar'
-import { calculateStats, generateTrendData } from '../utils/reportGenerator'
+import { calculateStats } from '../utils/reportGenerator'
 
 export default function UploadPage() {
   const { uploadedFiles, uploadStatus, uploadProgress, parsedResults, error, clearSession } =
     useSessionStore()
     
-  const [filters, setFilters] = useState({ severity: [], language: [], search: '' })
-
   const isDone = uploadStatus === 'done'
-  
-  // Filter Logic
-  const filteredResults = useMemo(() => {
-    if (!isDone) return [];
-    
-    return parsedResults.map(file => ({
-      ...file,
-      errors: (file.errors || []).filter(err => {
-        const matchSeverity = filters.severity.length === 0 || filters.severity.includes(err.severity);
-        const matchLanguage = filters.language.length === 0 || filters.language.includes(err.language);
-        const matchSearch = !filters.search || 
-          err.message.toLowerCase().includes(filters.search.toLowerCase()) ||
-          err.file?.toLowerCase().includes(filters.search.toLowerCase());
-          
-        return matchSeverity && matchLanguage && matchSearch;
-      })
-    })).filter(file => file.errors.length > 0 || !filters.search); // Keep files if they have matches or if not searching
-  }, [isDone, parsedResults, filters]);
 
-  const stats = isDone ? calculateStats(filteredResults) : null
-  const trendData = isDone ? generateTrendData(filteredResults) : []
-  
-  const availableLanguages = useMemo(() => {
-    const langs = new Set();
-    parsedResults.forEach(f => {
-      f.errors.forEach(e => langs.add(e.language));
-    });
-    return Array.from(langs);
-  }, [parsedResults]);
+  const stats = isDone ? calculateStats(parsedResults) : null
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -123,48 +92,28 @@ export default function UploadPage() {
           {/* Stats Overview */}
           <StatsCards stats={stats} />
 
-          {/* Visualization Row */}
-          <div className="grid grid-cols-1 gap-6">
-            <ErrorTrendChart data={trendData} />
-          </div>
 
           {/* Detailed Tables */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            <div className="lg:col-span-1">
-              <FilterSidebar 
-                filters={filters} 
-                setFilters={setFilters} 
-                availableValues={{ languages: availableLanguages }} 
-              />
+          <div className="space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-white/5" />
+              <h3 className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em]">
+                {stats.total} Log{stats.total !== 1 ? 's' : ''}
+              </h3>
+              <div className="h-px flex-1 bg-white/5" />
             </div>
-            
-            <div className="lg:col-span-3 space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="h-px flex-1 bg-white/5" />
-                <h3 className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em]">
-                  {stats.total} Matching Error{stats.total !== 1 ? 's' : ''}
-                </h3>
-                <div className="h-px flex-1 bg-white/5" />
+
+            {parsedResults.map((fileResult) => (
+              fileResult.errors.length > 0 && (
+                <ErrorTable key={fileResult.fileName} fileResult={fileResult} />
+              )
+            ))}
+
+            {stats.total === 0 && (
+              <div className="card p-12 text-center text-slate-500">
+                <p className="text-sm">No errors found in the uploaded files.</p>
               </div>
-              
-              {filteredResults.map((fileResult) => (
-                fileResult.errors.length > 0 && (
-                  <ErrorTable key={fileResult.fileName} fileResult={fileResult} />
-                )
-              ))}
-              
-              {stats.total === 0 && (
-                <div className="card p-12 text-center text-slate-500">
-                  <p className="text-sm">No errors match your current filters.</p>
-                  <button 
-                    onClick={() => setFilters({ severity: [], language: [], search: '' })}
-                    className="text-blue-400 text-xs mt-2 underline"
-                  >
-                    Clear all filters
-                  </button>
-                </div>
-              )}
-            </div>
+            )}
           </div>
         </div>
       )}

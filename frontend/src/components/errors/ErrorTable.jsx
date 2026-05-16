@@ -7,7 +7,8 @@ import CodeViewerModal from '../viewer/CodeViewerModal'
 import { getAISuggestion } from '../../services/ai'
 import useAIStore from '../../store/useAIStore'
 import FixSuggestion from '../ai/FixSuggestion'
-import { Sparkles, Loader2 } from 'lucide-react'
+import { Sparkles, Loader2, X, AlertCircle } from 'lucide-react'
+import { createPortal } from 'react-dom'
 
 const SEVERITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3 }
 
@@ -25,33 +26,98 @@ const SEVERITY_DOT = {
   low:      'bg-green-500',
 }
 
-function ErrorRow({ error, index, onViewCode, virtualRow }) {
-  const [expanded, setExpanded] = useState(false)
-  const [aiLoading, setAiLoading] = useState(false)
-  const [aiSuggestion, setAiSuggestion] = useState(null)
+// ── Collapsed row ────────────────────────────────────────────────────────────
+function ErrorRow({ error, index, virtualRow, isSelected, onSelect }) {
   const sc = SEVERITY_CLASSES[error.severity] || 'severity-low'
 
-  const { fileIndex, status: codebaseStatus, directoryHandle } = useCodebaseStore()
-  const aiConfig = useAIStore()
-  const localPath = codebaseStatus === 'connected' ? matchLogPathToLocal(error.file, fileIndex) : null
+  return (
+    <tr
+      id={`error-row-${error.id}`}
+      ref={virtualRow.measureElement}
+      style={{
+        transform: `translateY(${virtualRow.start}px)`,
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+      }}
+      className={`border-b border-white/5 cursor-pointer transition-colors duration-100 ${
+        isSelected ? 'bg-brand-600/10' : 'hover:bg-white/[0.02]'
+      }`}
+      onClick={() => onSelect(error)}
+    >
+      <td className="px-4 py-3 text-xs text-slate-600 font-mono whitespace-nowrap">{index + 1}</td>
 
-  const handleGetAIFix = async (e) => {
-    e.stopPropagation()
+      <td className="px-4 py-3 whitespace-nowrap">
+        <span className={`badge ${sc} border`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${SEVERITY_DOT[error.severity]}`} />
+          {error.severity}
+        </span>
+      </td>
+
+      <td className="px-4 py-3 whitespace-nowrap max-w-[160px]">
+        <span className="text-xs font-mono text-slate-300 block truncate">
+          {(error.errorType || '').replace(/\n/g, ' ')}
+        </span>
+      </td>
+
+      <td className="px-4 py-3 whitespace-nowrap">
+        <FormatBadge format={error.language} />
+      </td>
+
+      <td className="px-4 py-3 max-w-md">
+        <p className="text-xs text-slate-300 truncate font-mono">{error.message}</p>
+      </td>
+
+      <td className="px-4 py-3 text-xs font-mono text-slate-500 whitespace-nowrap">
+        {error.file ? (
+          <span title={error.file}>
+            …{error.file.split('/').slice(-2).join('/')}
+            {error.line ? `:${error.line}` : ''}
+          </span>
+        ) : '—'}
+      </td>
+
+      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">
+        {error.timestamp ? new Date(error.timestamp).toLocaleTimeString() : '—'}
+      </td>
+
+      <td className="px-4 py-3 text-slate-600">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"
+          className={`transition-transform duration-200 ${isSelected ? 'rotate-180' : ''}`}>
+          <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </td>
+    </tr>
+  )
+}
+
+// ── Error Detail Modal ───────────────────────────────────────────────────────
+function ErrorDetailModal({ error, onClose, onViewCode }) {
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiSuggestion, setAiSuggestion] = useState(null)
+  const aiConfig = useAIStore()
+  const { fileIndex, status: codebaseStatus, directoryHandle } = useCodebaseStore()
+  const localPath = codebaseStatus === 'connected' ? matchLogPathToLocal(error.file, fileIndex) : null
+  const sc = SEVERITY_CLASSES[error.severity] || 'severity-low'
+
+  // Close on Escape key
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const handleGetAIFix = async () => {
     if (aiLoading) return
-    
     setAiLoading(true)
-    setExpanded(true) // Expand to show loading/results
-    
     try {
       let codeContext = ''
       if (localPath && directoryHandle) {
         const { getFileHandleByPath, readFileContent } = await import('../../utils/fileSystem')
         const handle = await getFileHandleByPath(directoryHandle, localPath)
-        if (handle) {
-          codeContext = await readFileContent(handle)
-        }
+        if (handle) codeContext = await readFileContent(handle)
       }
-
       const result = await getAISuggestion({
         message: error.message,
         errorType: error.errorType,
@@ -59,178 +125,148 @@ function ErrorRow({ error, index, onViewCode, virtualRow }) {
         line: error.line,
         codeContext,
         language: error.language,
-        stackTrace: error.stackFrames?.join('\n')
+        stackTrace: error.stackFrames?.join('\n'),
       }, aiConfig)
-      
       setAiSuggestion(result)
     } catch (err) {
       console.error('AI Fix Error:', err)
-      // We could set an error state here
     } finally {
       setAiLoading(false)
     }
   }
 
-  return (
-    <>
-      <tr
-        id={`error-row-${error.id}`}
-        ref={virtualRow.measureElement}
-        style={{
-          transform: `translateY(${virtualRow.start}px)`,
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100%',
-        }}
-        className="border-b border-white/5 hover:bg-white/[0.02] cursor-pointer transition-colors duration-100"
-        onClick={() => setExpanded((v) => !v)}
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+      onClick={onClose}
+    >
+      {/* Modal card — stop click propagation so backdrop click closes, content click doesn't */}
+      <div
+        className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-white/10 shadow-2xl"
+        style={{ backgroundColor: 'var(--color-surface-800, #1a1f2e)' }}
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* # */}
-        <td className="px-4 py-3 text-xs text-slate-600 font-mono">{index + 1}</td>
-
-        {/* Severity */}
-        <td className="px-4 py-3">
-          <span className={`badge ${sc} border`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${SEVERITY_DOT[error.severity]}`} />
-            {error.severity}
-          </span>
-        </td>
-
-        {/* Type */}
-        <td className="px-4 py-3">
-          <span className="text-xs font-mono text-slate-300">{error.errorType}</span>
-        </td>
-
-        {/* Format */}
-        <td className="px-4 py-3">
-          <FormatBadge format={error.language} />
-        </td>
-
-        {/* Message */}
-        <td className="px-4 py-3 max-w-md">
-          <p className="text-xs text-slate-300 truncate font-mono">{error.message}</p>
-        </td>
-
-        {/* File:line */}
-        <td className="px-4 py-3 text-xs font-mono text-slate-500 whitespace-nowrap">
-          {error.file ? (
-            <span title={error.file}>
-              …{error.file.split('/').slice(-2).join('/')}
-              {error.line ? `:${error.line}` : ''}
-            </span>
-          ) : '—'}
-        </td>
-
-        {/* Timestamp */}
-        <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">
-          {error.timestamp
-            ? new Date(error.timestamp).toLocaleTimeString()
-            : '—'}
-        </td>
-
-        {/* View Code Action */}
-        <td className="px-4 py-3 text-right">
-          <div className="flex items-center justify-end gap-3">
-            <button 
+        {/* Modal header */}
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 px-6 py-5 border-b border-white/10"
+          style={{ backgroundColor: 'var(--color-surface-800, #1a1f2e)' }}
+        >
+          <div className="flex flex-col gap-2 min-w-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <AlertCircle size={16} className="text-slate-400 shrink-0" />
+              <span className={`badge ${sc} border`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${SEVERITY_DOT[error.severity]}`} />
+                {error.severity}
+              </span>
+              <span className="text-sm font-semibold text-white font-mono">
+                {(error.errorType || '').replace(/\n/g, ' ')}
+              </span>
+            </div>
+            {error.file && (
+              <p className="text-xs font-mono text-slate-500 truncate" title={error.file}>
+                {error.file}{error.line ? `:${error.line}` : ''}
+              </p>
+            )}
+            {error.timestamp && (
+              <p className="text-xs text-slate-600">
+                {new Date(error.timestamp).toLocaleString()}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <button
               onClick={handleGetAIFix}
               disabled={aiLoading}
-              className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider transition-all ${
-                aiLoading ? 'text-blue-500 animate-pulse' : 'text-amber-500 hover:text-amber-400'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border transition-all ${
+                aiLoading
+                  ? 'text-blue-400 border-blue-500/30 bg-blue-500/10 animate-pulse'
+                  : 'text-amber-400 border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20'
               }`}
             >
               {aiLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
               AI Fix
             </button>
-
-            {localPath ? (
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onViewCode(localPath, error.line, error.language);
-                }}
-                className="text-[10px] font-bold text-blue-400 hover:text-blue-300 uppercase tracking-wider transition-colors"
+            {localPath && (
+              <button
+                onClick={() => { onViewCode(localPath, error.line, error.language); onClose() }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all"
               >
                 View Code
               </button>
-            ) : (
-              <span className="text-[10px] text-slate-700 uppercase tracking-wider">No Match</span>
             )}
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/10 transition-all"
+            >
+              <X size={16} />
+            </button>
           </div>
-        </td>
+        </div>
 
-        {/* Expand toggle */}
-        <td className="px-4 py-3 text-slate-600">
-          <svg
-            width="12" height="12" viewBox="0 0 12 12" fill="none"
-            className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
-          >
-            <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </td>
-      </tr>
+        <div className="p-6 space-y-6">
+          {/* Message */}
+          <div className="rounded-xl bg-black/20 border border-white/5 p-4">
+            <p className="text-[11px] text-slate-500 font-bold mb-2 uppercase tracking-widest">Message</p>
+            <p className="text-sm text-slate-200 font-mono leading-relaxed break-all">{error.message}</p>
+          </div>
 
-      {/* Expanded section */}
-      {expanded && (
-        <tr className="bg-surface-700/50">
-          <td colSpan={9} className="px-6 py-6 space-y-6">
-            {/* AI Fix Suggestion (if loading or result exists) */}
-            {(aiLoading || aiSuggestion) && (
-              <div className="max-w-4xl animate-in slide-in-from-top duration-300">
-                {aiLoading ? (
-                  <div className="card p-8 flex flex-col items-center justify-center gap-4 bg-surface-900/50 border-dashed">
-                    <Loader2 size={32} className="text-blue-500 animate-spin" />
-                    <div className="text-center">
-                      <p className="text-sm font-bold text-white">AI is analyzing the error...</p>
-                      <p className="text-xs text-slate-500 mt-1">Comparing log context with your local codebase.</p>
-                    </div>
-                  </div>
-                ) : (
-                  <FixSuggestion suggestion={aiSuggestion} />
-                )}
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Raw Log */}
-              <div className="rounded-xl bg-surface-900 border border-white/5 p-4 shadow-inner">
-                <p className="text-[11px] text-slate-500 font-bold mb-3 uppercase tracking-widest flex items-center gap-2">
-                  <span className="w-1 h-1 rounded-full bg-slate-500" />
-                  Raw Log Entry
-                </p>
-                <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap break-all leading-relaxed">
-                  {error.rawLine || error.message}
-                </pre>
-              </div>
-
-              {/* Stack Trace */}
-              {error.stackFrames?.length > 0 && (
-                <div className="rounded-xl bg-surface-900 border border-white/5 p-4 shadow-inner">
-                  <p className="text-[11px] text-slate-500 font-bold mb-3 uppercase tracking-widest flex items-center gap-2">
-                    <span className="w-1 h-1 rounded-full bg-slate-500" />
-                    Stack Trace
-                  </p>
-                  <div className="space-y-1.5">
-                    {error.stackFrames.map((frame, i) => (
-                      <p key={i} className="text-[11px] font-mono text-slate-400 leading-relaxed border-l-2 border-white/5 pl-3 hover:border-blue-500/50 transition-colors">
-                        {frame}
-                      </p>
-                    ))}
-                  </div>
+          {/* AI suggestion */}
+          {(aiLoading || aiSuggestion) && (
+            <div>
+              {aiLoading ? (
+                <div className="rounded-xl border border-dashed border-blue-500/20 p-8 flex flex-col items-center justify-center gap-3">
+                  <Loader2 size={28} className="text-blue-500 animate-spin" />
+                  <p className="text-sm font-bold text-white">AI is analyzing the error...</p>
+                  <p className="text-xs text-slate-500">Comparing log context with your local codebase.</p>
                 </div>
+              ) : (
+                <FixSuggestion suggestion={aiSuggestion} />
               )}
             </div>
-          </td>
-        </tr>
-      )}
-    </>
+          )}
+
+          {/* Raw log + stack trace */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="rounded-xl bg-black/20 border border-white/5 p-4">
+              <p className="text-[11px] text-slate-500 font-bold mb-3 uppercase tracking-widest flex items-center gap-2">
+                <span className="w-1 h-1 rounded-full bg-slate-500" />
+                Raw Log Entry
+              </p>
+              <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap break-all leading-relaxed">
+                {error.rawLine || error.message}
+              </pre>
+            </div>
+
+            {error.stackFrames?.length > 0 && (
+              <div className="rounded-xl bg-black/20 border border-white/5 p-4">
+                <p className="text-[11px] text-slate-500 font-bold mb-3 uppercase tracking-widest flex items-center gap-2">
+                  <span className="w-1 h-1 rounded-full bg-slate-500" />
+                  Stack Trace
+                </p>
+                <div className="space-y-1.5">
+                  {error.stackFrames.map((frame, i) => (
+                    <p key={i} className="text-[11px] font-mono text-slate-400 leading-relaxed border-l-2 border-white/5 pl-3 hover:border-blue-500/50 transition-colors">
+                      {frame}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
   )
 }
 
+// ── Main table ───────────────────────────────────────────────────────────────
 export default function ErrorTable({ fileResult }) {
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [selectedError, setSelectedError] = useState(null)
   const [viewer, setViewer] = useState({ isOpen: false, filePath: '', line: null, lang: '' })
+  const parentRef = useRef()
 
   const { errors = [], summary = {}, fileName, detectedFormat, overrideApplied, parseTimeMs } = fileResult
 
@@ -244,19 +280,30 @@ export default function ErrorTable({ fileResult }) {
     )
     .sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 4) - (SEVERITY_ORDER[b.severity] ?? 4))
 
-  const parentRef = useRef();
-
   const rowVirtualizer = useVirtualizer({
     count: filtered.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 50, // Height of a collapsed row
-    overscan: 10,
-  });
+    estimateSize: () => 48,
+    overscan: 15,
+    paddingStart: 42, // offset rows below sticky thead
+  })
 
-  const virtualRows = rowVirtualizer.getVirtualItems();
-  const totalSize = rowVirtualizer.getTotalSize();
+  const virtualRows = rowVirtualizer.getVirtualItems()
+  const totalSize = rowVirtualizer.getTotalSize()
 
   const FILTERS = ['all', 'critical', 'high', 'medium', 'low']
+
+  // Shift+wheel → horizontal scroll
+  const handleWheel = (e) => {
+    if (e.shiftKey && parentRef.current) {
+      e.preventDefault()
+      parentRef.current.scrollLeft += e.deltaY
+    }
+  }
+
+  const handleSelectRow = (error) => {
+    setSelectedError((prev) => (prev?.id === error.id ? null : error))
+  }
 
   return (
     <div id={`error-table-${fileName}`} className="card overflow-hidden animate-slide-up">
@@ -271,11 +318,10 @@ export default function ErrorTable({ fileResult }) {
             )}
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Parsed in {parseTimeMs}ms · {errors.length} errors found
+            Parsed in {parseTimeMs}ms · {errors.length} logs found
           </p>
         </div>
 
-        {/* Summary pills */}
         <div className="flex items-center gap-2 flex-wrap">
           {[
             { key: 'critical', label: 'Critical', cls: 'bg-red-500/20 text-red-300 border-red-500/30' },
@@ -294,7 +340,6 @@ export default function ErrorTable({ fileResult }) {
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-white/5 bg-surface-700/30">
-        {/* Severity filter tabs */}
         <div className="flex items-center gap-1">
           {FILTERS.map((f) => (
             <button
@@ -312,7 +357,6 @@ export default function ErrorTable({ fileResult }) {
           ))}
         </div>
 
-        {/* Search */}
         <input
           id="error-search-input"
           type="search"
@@ -323,17 +367,18 @@ export default function ErrorTable({ fileResult }) {
         />
       </div>
 
-      {/* Table */}
+      {/* Virtualised table — shift+wheel scrolls horizontally */}
       {filtered.length === 0 ? (
         <div className="py-16 text-center text-slate-600 text-sm">
           No errors match your filters.
         </div>
       ) : (
-        <div 
-          ref={parentRef} 
-          className="overflow-auto max-h-[600px] relative scrollbar-thin scrollbar-thumb-white/10"
+        <div
+          ref={parentRef}
+          onWheel={handleWheel}
+          className="overflow-auto max-h-[500px] relative scrollbar-thin scrollbar-thumb-white/10"
         >
-          <table className="w-full text-left" style={{ height: `${totalSize}px`, position: 'relative' }}>
+          <table className="w-full text-left min-w-[800px]" style={{ height: `${totalSize}px`, position: 'relative' }}>
             <thead className="sticky top-0 bg-surface-800 z-10">
               <tr className="text-[11px] text-slate-600 uppercase tracking-widest border-b border-white/5">
                 {['#', 'Severity', 'Type', 'Format', 'Message', 'File:Line', 'Time', ''].map((h, i) => (
@@ -343,24 +388,34 @@ export default function ErrorTable({ fileResult }) {
             </thead>
             <tbody>
               {virtualRows.map((virtualRow) => {
-                const error = filtered[virtualRow.index];
+                const error = filtered[virtualRow.index]
                 return (
-                  <ErrorRow 
-                    key={error.id} 
-                    error={error} 
-                    index={virtualRow.index} 
+                  <ErrorRow
+                    key={error.id}
+                    error={error}
+                    index={virtualRow.index}
                     virtualRow={virtualRow}
-                    onViewCode={(path, line, lang) => setViewer({ isOpen: true, filePath: path, line, lang })}
+                    isSelected={selectedError?.id === error.id}
+                    onSelect={handleSelectRow}
                   />
-                );
+                )
               })}
             </tbody>
           </table>
         </div>
       )}
 
+      {/* Error detail modal — rendered into document.body via portal */}
+      {selectedError && (
+        <ErrorDetailModal
+          error={selectedError}
+          onClose={() => setSelectedError(null)}
+          onViewCode={(path, line, lang) => setViewer({ isOpen: true, filePath: path, line, lang })}
+        />
+      )}
+
       {/* Code Viewer Modal */}
-      <CodeViewerModal 
+      <CodeViewerModal
         isOpen={viewer.isOpen}
         onClose={() => setViewer({ ...viewer, isOpen: false })}
         filePath={viewer.filePath}

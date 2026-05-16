@@ -36,7 +36,6 @@ export default function Sidebar() {
         </div>
         <div>
           <p className="font-bold text-sm text-white leading-none">TrackError</p>
-          <p className="text-[10px] text-slate-500 leading-none mt-0.5">Phase 3</p>
         </div>
       </div>
 
@@ -57,15 +56,7 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Footer */}
-      <div className="mt-auto px-3">
-        <div className="rounded-xl bg-brand-600/10 border border-brand-500/20 p-3">
-          <p className="text-xs font-semibold text-brand-300 mb-0.5">Phase 3</p>
-          <p className="text-[11px] text-slate-500 leading-snug">
-            AI-Powered Fixes & Mapping — Local Codebase Connected
-          </p>
-        </div>
-      </div>
+
     </aside>
   )
 }

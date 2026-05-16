@@ -1,48 +1,30 @@
-# Track Fast Error With AI
+# AI Error Tracker Documentation
 
-A SaaS application that ingests PHP, Node.js, and Python log files and extracts structured error data using deterministic regex parsers.
+Welcome to the AI Error Tracker. This tool is designed to help developers track, parse, and fix errors in their applications using AI-powered suggestions.
 
-## Phase 1 — Scope
-- React SPA (Vite) frontend with drag-and-drop log upload
-- Node.js / Express backend with `.gz` decompression
-- Auto-detection of log format (PHP / Node.js / Python)
-- Regex-based parsers for all three formats
-- Parsed error table rendered in the UI
+## Key Features
 
-## Quick Start
+- **Multi-Format Parsing**: Supports PHP (Laravel), Node.js (PM2/Standard), and Python (Traceback) log formats.
+- **Log Streaming**: Efficiently handle large log files (500MB+) with zero-memory-leak streaming.
+- **Codebase Indexing**: Connect your local codebase via File System Access API to map log errors directly to your source code.
+- **AI-Powered Fixes**: Get instant suggestions for fixing errors based on log context and local code.
+- **Interactive Dashboard**: Visualize error trends and filter by severity or type.
 
-### Backend
-```bash
-cd backend
-npm install
-cp .env.example .env
-npm run dev
-```
-Runs on http://localhost:4000
+## Getting Started
 
-### Frontend
-```bash
-cd frontend
-npm install
-cp .env.example .env
-npm run dev
-```
-Runs on http://localhost:5173
+1.  **Run the Backend**: `cd backend && npm run dev`
+2.  **Run the Frontend**: `cd frontend && npm run dev`
+3.  **Upload Logs**: Drag and drop your log files into the dashboard.
+4.  **Connect Codebase**: Click "Connect Codebase" to enable local file mapping.
 
-## Project Structure
-```
-track-errors/
-├── docs/              ← PRD + Phase plans
-├── frontend/          ← React 18 + Vite SPA
-└── backend/           ← Node.js 22 + Express 5 API
-```
+## Architecture
 
-## Tech Stack
-| Layer | Technology |
-|---|---|
-| Frontend | React 18 + Vite 5 + Tailwind CSS v3 |
-| State | Zustand |
-| HTTP | Axios |
-| Backend | Node.js 22 + Express 5 |
-| Parsing | Custom regex modules (PHP / Node / Python) |
-| Testing | Vitest (FE) + Jest (BE) |
+- **Backend**: Node.js/Express with a custom streaming parser engine.
+- **Frontend**: React/Vite with Tailwind CSS and Radix UI.
+- **AI Integration**: Leverages Google Gemini for error analysis and fix suggestions.
+
+## Performance Optimization
+
+- **Log Streaming**: Uses Node.js `readline` and `fs` streams.
+- **Virtualized Lists**: Uses `@tanstack/react-virtual` for smooth UI performance with thousands of errors.
+- **Web Workers**: Offloads codebase indexing to a separate thread to keep the UI responsive.

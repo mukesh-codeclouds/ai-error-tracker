@@ -20,11 +20,11 @@ export default function StatsCards({ stats }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
       <StatCard 
-        title="Total Errors" 
+        title="Total Logs" 
         value={total} 
         icon={Activity} 
         colorClass="bg-blue-500 text-blue-400" 
-        subtext="Across all uploaded logs"
+        subtext="Parsed entries across all files"
       />
       <StatCard 
         title="Critical" 

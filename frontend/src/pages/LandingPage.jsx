@@ -45,10 +45,6 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="relative z-10 flex flex-col items-center text-center px-6 pt-24 pb-20">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-600/15 border border-brand-500/25 text-brand-300 text-xs font-medium mb-8 animate-fade-in">
-          <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" />
-          Phase 1 — Deterministic Parsing Engine
-        </div>
 
         <h1 className="text-5xl sm:text-6xl font-extrabold leading-tight mb-6 animate-slide-up">
           Find errors in your
@@ -93,7 +89,7 @@ export default function LandingPage() {
       {/* Features grid */}
       <section id="features" className="relative z-10 max-w-5xl mx-auto px-6 pb-24">
         <h2 className="text-2xl font-bold text-center mb-12 text-slate-200">
-          Everything you need in Phase 1
+          Everything you need
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {FEATURES.map(({ icon, title, desc }) => (
